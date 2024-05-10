@@ -1,4 +1,4 @@
-class CreateJobResults < ActiveRecord::Migration[7.0]
+class CreateJobResults < ActiveRecord::Migration[6.1]
   def change
     create_table :job_results do |t|
       t.string :queue_name
