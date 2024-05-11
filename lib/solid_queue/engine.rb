@@ -35,5 +35,9 @@ module SolidQueue
         include ActiveJob::ConcurrencyControls
       end
     end
+
+    initializer "solid_queue.backports" do
+      require "backports/extensions"
+    end
   end
 end

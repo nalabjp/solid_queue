@@ -12,6 +12,7 @@ loader = Zeitwerk::Loader.for_gem(warn_on_extra_files: false)
 loader.ignore("#{__dir__}/solid_queue/tasks.rb")
 loader.ignore("#{__dir__}/generators")
 loader.ignore("#{__dir__}/puma")
+loader.ignore("#{__dir__}/backports")
 loader.setup
 
 module SolidQueue
