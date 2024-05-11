@@ -26,3 +26,58 @@ module SolidQueueActiveJobConfiguredJobBackport
   end
 end
 ActiveJob::ConfiguredJob.prepend(SolidQueueActiveJobConfiguredJobBackport)
+
+# Backport `ActiveJob.perform_all_later` API
+module SolidQueueActiveJobPerformAllLaterBackport
+  module ConfiguredJob
+    # Partial backport from `v7.1.3.2`
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/configured_job.rb#L18-L20
+    def perform_all_later(multi_args)
+      @job_class.perform_all_later(multi_args, options: @options)
+    end
+  end
+
+  module Enqueueing
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/enqueuing.rb#L16-L39
+    def perform_all_later(*jobs)
+      jobs.flatten!
+      jobs.group_by(&:queue_adapter).each do |queue_adapter, adapter_jobs|
+        instrument_enqueue_all(queue_adapter, adapter_jobs) do
+          if queue_adapter.respond_to?(:enqueue_all)
+            queue_adapter.enqueue_all(adapter_jobs)
+          else
+            adapter_jobs.each do |job|
+              job.successfully_enqueued = false
+              if job.scheduled_at
+                queue_adapter.enqueue_at(job, job.scheduled_at)
+              else
+                queue_adapter.enqueue(job)
+              end
+              job.successfully_enqueued = true
+            rescue EnqueueError => e
+              job.enqueue_error = e
+            end
+          end
+        end
+      end
+      nil
+    end
+  end
+
+  module Instrumentation
+    private
+
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/instrumentation.rb#L4-L12
+    def instrument_enqueue_all(queue_adapter, jobs)
+      payload = { adapter: queue_adapter, jobs: jobs }
+      ActiveSupport::Notifications.instrument("enqueue_all.active_job", payload) do
+        result = yield payload
+        payload[:enqueued_count] = result
+        result
+      end
+    end
+  end
+end
+ActiveJob::ConfiguredJob.include(SolidQueueActiveJobPerformAllLaterBackport::ConfiguredJob)
+ActiveJob.extend(SolidQueueActiveJobPerformAllLaterBackport::Enqueueing)
+ActiveJob.extend(SolidQueueActiveJobPerformAllLaterBackport::Instrumentation)
