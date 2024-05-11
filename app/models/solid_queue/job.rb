@@ -40,7 +40,8 @@ module SolidQueue
         end
 
         def create_all_from_active_jobs(active_jobs)
-          job_rows = active_jobs.map { |job| attributes_from_active_job(job) }
+          now = Time.current
+          job_rows = active_jobs.map { |job| attributes_from_active_job(job).merge(created_at: now, updated_at: now) }
           insert_all(job_rows)
           where(active_job_id: active_jobs.map(&:job_id))
         end

@@ -18,8 +18,9 @@ module SolidQueue
       end
 
       def execution_data_from_jobs(jobs)
+        now = Time.current
         jobs.collect do |job|
-          attributes_from_job(job).merge(job_id: job.id)
+          attributes_from_job(job).merge(job_id: job.id, created_at: now)
         end
       end
 
