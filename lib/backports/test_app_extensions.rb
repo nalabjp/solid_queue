@@ -27,6 +27,65 @@ module SolidQueueActiveJobConfiguredJobBackport
 end
 ActiveJob::ConfiguredJob.prepend(SolidQueueActiveJobConfiguredJobBackport)
 
+# Backport `ActiveJob::Base.successfully_enqueued` API
+module SolidQueueActiveJobSuccessfullyEnqueuedBackport
+  module Core
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/core.rb#L51
+    attr_writer :successfully_enqueued # :nodoc:
+
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/core.rb#L53-L55
+    def successfully_enqueued?
+      @successfully_enqueued
+    end
+
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/core.rb#L58
+    attr_accessor :enqueue_error
+  end
+
+  module Enqueueing
+    def self.prepended(mod)
+      # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/enqueuing.rb#L10
+      mod.const_set(:EnqueueError, Class.new(StandardError))
+    end
+
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/enqueuing.rb#L58-L65
+    def perform_later(*args)
+      job = job_or_instantiate(*args)
+      enqueue_result = job.enqueue
+
+      yield job if block_given?
+
+      enqueue_result
+    end
+
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/enqueuing.rb#L89-L110
+    def enqueue(options = {})
+      set(options)
+      self.successfully_enqueued = false
+
+      run_callbacks :enqueue do
+        if scheduled_at
+          queue_adapter.enqueue_at self, scheduled_at
+        else
+          queue_adapter.enqueue self
+        end
+
+        self.successfully_enqueued = true
+      rescue EnqueueError => e
+        self.enqueue_error = e
+      end
+
+      if successfully_enqueued?
+        self
+      else
+        false
+      end
+    end
+  end
+end
+ActiveJob::Base.include(SolidQueueActiveJobSuccessfullyEnqueuedBackport::Core)
+ActiveJob.prepend(SolidQueueActiveJobSuccessfullyEnqueuedBackport::Enqueueing)
+
 # Backport `ActiveJob.perform_all_later` API
 module SolidQueueActiveJobPerformAllLaterBackport
   module ConfiguredJob
