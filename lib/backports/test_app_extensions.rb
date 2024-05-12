@@ -65,7 +65,7 @@ module SolidQueueActiveJobSuccessfullyEnqueuedBackport
 
       run_callbacks :enqueue do
         if scheduled_at
-          queue_adapter.enqueue_at self, scheduled_at
+          queue_adapter.enqueue_at self, _scheduled_at_time.to_f
         else
           queue_adapter.enqueue self
         end
@@ -140,3 +140,66 @@ end
 ActiveJob::ConfiguredJob.include(SolidQueueActiveJobPerformAllLaterBackport::ConfiguredJob)
 ActiveJob.extend(SolidQueueActiveJobPerformAllLaterBackport::Enqueueing)
 ActiveJob.extend(SolidQueueActiveJobPerformAllLaterBackport::Instrumentation)
+
+# Backport fixed `scheduled_at`
+module SolidQueueActiveJobScheduledAtBackport
+  module Core
+    def self.prepended(klass)
+      # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/core.rb#L16
+      # `attr_accessor` -> `attr_reader`
+      klass.class_eval { undef_method :scheduled_at= }
+    end
+
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/core.rb#L18
+    attr_reader :_scheduled_at_time # :nodoc:
+
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/core.rb#L99-L100
+    def initialize(*)
+      super
+      @scheduled_at = nil
+      @_scheduled_at_time = nil
+    end
+
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/core.rb#L122-L123
+    def serialize
+      super.merge!(
+        "enqueued_at" => Time.now.utc.iso8601(9),
+        "scheduled_at" => _scheduled_at_time ? _scheduled_at_time.utc.iso8601(9) : nil
+      )
+    end
+
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/core.rb#L163-L164
+    def deserialize(job_data)
+      super
+      self.enqueued_at  = Time.iso8601(job_data["enqueued_at"]) if job_data["enqueued_at"]
+      self.scheduled_at = Time.iso8601(job_data["scheduled_at"]) if job_data["scheduled_at"]
+    end
+
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/core.rb#L177-L187
+    def scheduled_at=(value)
+      @_scheduled_at_time = if value&.is_a?(Numeric)
+        ActiveSupport::Deprecation.warn(<<~MSG.squish)
+          Assigning a numeric/epoch value to scheduled_at is deprecated. Use a Time object instead.
+        MSG
+        Time.at(value)
+      else
+        value
+      end
+      @scheduled_at = value
+    end
+  end
+
+  module LogSubscriber
+    # https://github.com/rails/rails/blob/v7.1.3.2/activejob/lib/active_job/log_subscriber.rb#L76-L83
+    def perform_start(event)
+      info do
+        job = event.payload[:job]
+        enqueue_info = job.enqueued_at.present? ? " enqueued at #{job.enqueued_at.utc.iso8601(9)}" : ""
+
+        "Performing #{job.class.name} (Job ID: #{job.job_id}) from #{queue_name(event)}" + enqueue_info + args_info(job)
+      end
+    end
+  end
+end
+ActiveJob::Base.prepend(SolidQueueActiveJobScheduledAtBackport::Core)
+ActiveJob::LogSubscriber.prepend(SolidQueueActiveJobScheduledAtBackport::LogSubscriber)
