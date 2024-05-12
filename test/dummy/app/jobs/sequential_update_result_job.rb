@@ -1,3 +1,3 @@
 class SequentialUpdateResultJob < UpdateResultJob
-  limits_concurrency key: ->(job_result, **) { job_result }
+  limits_concurrency key: ->(job_result, *_) { job_result }
 end
