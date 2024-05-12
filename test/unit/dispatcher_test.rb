@@ -102,7 +102,7 @@ class DispatcherTest < ActiveSupport::TestCase
     assert_equal 15, SolidQueue::ReadyExecution.count
 
   ensure
-    another_dispatcher.stop
+    another_dispatcher&.stop
   end
 
   test "run more than one instance of the dispatcher with recurring tasks" do

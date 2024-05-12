@@ -6,7 +6,11 @@ module SolidQueue
       extend ActiveSupport::Concern
 
       included do
-        scope :clearable, ->(finished_before: SolidQueue.clear_finished_jobs_after.ago, class_name: nil) { where.not(finished_at: nil).where(finished_at: ...finished_before).where(class_name.present? ? { class_name: class_name } : {}) }
+        scope :clearable, ->(options = {}) {
+          finished_before = options.fetch(:finished_before, SolidQueue.clear_finished_jobs_after.ago)
+          class_name = options.fetch(:class_name, nil)
+          where.not(finished_at: nil).where(finished_at: ...finished_before).where(class_name.present? ? { class_name: class_name } : {})
+        }
       end
 
       class_methods do

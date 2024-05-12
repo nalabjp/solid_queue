@@ -1,4 +1,4 @@
-class CreateRecurringExecutions < ActiveRecord::Migration[7.1]
+class CreateRecurringExecutions < ActiveRecord::Migration[6.1]
   def change
     create_table :solid_queue_recurring_executions do |t|
       t.references :job, index: { unique: true }, null: false

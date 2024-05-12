@@ -11,7 +11,8 @@ class SolidQueue::ClaimedExecution < SolidQueue::Execution
 
   class << self
     def claiming(job_ids, process_id, &block)
-      job_data = Array(job_ids).collect { |job_id| { job_id: job_id, process_id: process_id } }
+      now = Time.current
+      job_data = Array(job_ids).collect { |job_id| { job_id: job_id, process_id: process_id, created_at: now } }
 
       insert_all!(job_data)
       where(job_id: job_ids, process_id: process_id).load.tap do |claimed|
