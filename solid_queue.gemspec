@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
     Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.md"]
   end
 
-  rails_version = ">= 7.1"
+  rails_version = "~> 6.1.0"
   spec.add_dependency "activerecord", rails_version
   spec.add_dependency "activejob", rails_version
   spec.add_dependency "railties", rails_version
@@ -28,5 +28,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "puma"
   spec.add_development_dependency "mysql2"
   spec.add_development_dependency "pg"
-  spec.add_development_dependency "sqlite3"
+  spec.add_development_dependency "sqlite3", "~> 1.4"
 end
